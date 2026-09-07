@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="th" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>เกมทุบตัวตุ่น (Whack-a-Mole)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+    }
+  </script>
+  <style>
+    /* รองรับ Forced Colors Mode (High Contrast) */
+    @media (forced-colors: active) {
+      button, .card-border {
+        border: 2px solid ButtonText !important;
+      }
+    }
+    /* รองรับ Reduced Motion */
+    @media (prefers-reduced-motion: reduce) {
+      *, ::before, ::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100 min-h-screen flex flex-col justify-between transition-colors duration-200 p-4">
+
+  <!-- Header Section -->
+  <header class="max-w-4xl mx-auto w-full flex flex-wrap justify-between items-center gap-4 mb-6">
+    <div>
+      <h1 class="text-3xl font-bold tracking-tight">🐹 เกมทุบตัวตุ่น (Whack-a-Mole)</h1>
+      <p class="text-sm text-gray-600 dark:text-gray-400">ทดสอบความไว! กดหรือคลิกทุบตัวตุ่นทำคะแนนก่อนหมดเวลา</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="instructions-btn" type="button" class="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        📖 วิธีเล่น
+      </button>
+      <button id="theme-toggle" type="button" class="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        🌙 / ☀️ โหมด
+      </button>
+    </div>
+  </header>
+
+  <!-- Modal วิธีเล่น -->
+  <dialog id="instructions-modal" class="p-6 rounded-xl max-w-md w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 shadow-2xl backdrop:bg-black/50">
+    <h2 class="text-xl font-bold mb-4">📖 กติกาและวิธีเล่น</h2>
+    <ul class="list-disc list-inside space-y-2 text-sm mb-6">
+      <li>เมื่อกดเริ่มเกม ตัวตุ่น 🐹 จะสุ่มโผล่ขึ้นมาจากหลุม</li>
+      <li>ทุบตัวตุ่นได้โดยการ **คลิก** หรือ **กดปุ่มตัวเลข 1-9** บนแป้นพิมพ์ ตามตำแหน่งหลุม</li>
+      <li>ทุบสำเร็จรับ +1 คะแนนต่อตัว</li>
+      <li>ต้องทำคะแนนให้ถึงเป้าหมายก่อนเวลา 20 วินาทีจะหมดลง!</li>
+    </ul>
+    <form method="dialog" class="text-right">
+      <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        เข้าใจแล้ว
+      </button>
+    </form>
+  </dialog>
+
+  <!-- Control & Status Bar -->
+  <main class="max-w-4xl mx-auto w-full flex-grow flex flex-col items-center">
+    
+    <div class="w-full bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md mb-6 flex flex-wrap items-center justify-between gap-4 card-border">
+      
+      <!-- ระดับความยาก -->
+      <div class="flex items-center gap-2">
+        <label for="difficulty-select" class="text-sm font-medium">ระดับความยาก:</label>
+        <select id="difficulty-select" class="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          <option value="easy">ง่าย (โผล่ 1.2 วิ / ชนะที่ 8 คะแนน)</option>
+          <option value="medium" selected>ปานกลาง (โผล่ 0.8 วิ / ชนะที่ 12 คะแนน)</option>
+          <option value="hard">ยาก (โผล่ 0.5 วิ / ชนะที่ 16 คะแนน)</option>
+        </select>
+      </div>
+
+      <!-- สถิติ -->
+      <div class="flex items-center gap-6 text-sm font-semibold">
+        <div>เวลาคงเหลือ: <span id="time-left" class="text-blue-600 dark:text-blue-400">20</span>s</div>
+        <div>คะแนน: <span id="score" class="text-green-600 dark:text-green-400">0</span></div>
+      </div>
+
+      <!-- ปุ่มเริ่มเกม / เริ่มใหม่ -->
+      <button id="start-btn" type="button" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500">
+        ▶️ เริ่มเกม
+      </button>
+    </div>
+
+    <!-- ข้อความแจ้งสถานะ (Live Region สำหรับ Accessibility) -->
+    <div id="status-message" aria-live="polite" class="w-full text-center p-3 mb-4 rounded-lg font-bold text-lg hidden"></div>
+
+    <!-- กระดานหลุมตัวตุ่น (3x3 Grid = 9 หลุม) -->
+    <section aria-label="กระดานหลุมตัวตุ่น" class="w-full max-w-lg grid grid-cols-3 gap-4 transition-all duration-300">
+      <!-- สร้างหลุม 1-9 -->
+      <button type="button" class="mole-hole h-28 text-4xl rounded-2xl border-4 border-amber-800 bg-amber-100 dark:bg-gray-800 hover:bg-amber-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500 flex flex-col items-center justify-center shadow-inner relative card-border" data-index="1" aria-label="หลุมที่ 1">
+        <span class="mole-icon transition-transform duration-150 scale-0 select-none">🐹</span>
+        <span class="absolute bottom-1 right-2 text-xs font-bold text-amber-900/60 dark:text-gray-400 select-none">[1]</span>
+      </button>
+      <button type="button" class="mole-hole h-28 text-4xl rounded-2xl border-4 border-amber-800 bg-amber-100 dark:bg-gray-800 hover:bg-amber-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500 flex flex-col items-center justify-center shadow-inner relative card-border" data-index="2" aria-label="หลุมที่ 2">
+        <span class="mole-icon transition-transform duration-150 scale-0 select-none">🐹</span>
+        <span class="absolute bottom-1 right-2 text-xs font-bold text-amber-900/60 dark:text-gray-400 select-none">[2]</span>
+      </button>
+      <button type="button" class="mole-hole h-28 text-4xl rounded-2xl border-4 border-amber-800 bg-amber-100 dark:bg-gray-800 hover:bg-amber-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500 flex flex-col items-center justify-center shadow-inner relative card-border" data-index="3" aria-label="หลุมที่ 3">
+        <span class="mole-icon transition-transform duration-150 scale-0 select-none">🐹</span>
+        <span class="absolute bottom-1 right-2 text-xs font-bold text-amber-900/60 dark:text-gray-400 select-none">[3]</span>
+      </button>
+      <button type="button" class="mole-hole h-28 text-4xl rounded-2xl border-4 border-amber-800 bg-amber-100 dark:bg-gray-800 hover:bg-amber-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500 flex flex-col items-center justify-center shadow-inner relative card-border" data-index="4" aria-label="หลุมที่ 4">
+        <span class="mole-icon transition-transform duration-150 scale-0 select-none">🐹</span>
+        <span class="absolute bottom-1 right-2 text-xs font-bold text-amber-900/60 dark:text-gray-400 select-none">[4]</span>
+      </button>
+      <button type="button" class="mole-hole h-28 text-4xl rounded-2xl border-4 border-amber-800 bg-amber-100 dark:bg-gray-800 hover:bg-amber-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500 flex flex-col items-center justify-center shadow-inner relative card-border" data-index="5" aria-label="หลุมที่ 5">
+        <span class="mole-icon transition-transform duration-150 scale-0 select-none">🐹</span>
+        <span class="absolute bottom-1 right-2 text-xs font-bold text-amber-900/60 dark:text-gray-400 select-none">[5]</span>
+      </button>
+      <button type="button" class="mole-hole h-28 text-4xl rounded-2xl border-4 border-amber-800 bg-amber-100 dark:bg-gray-800 hover:bg-amber-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500 flex flex-col items-center justify-center shadow-inner relative card-border" data-index="6" aria-label="หลุมที่ 6">
+        <span class="mole-icon transition-transform duration-150 scale-0 select-none">🐹</span>
+        <span class="absolute bottom-1 right-2 text-xs font-bold text-amber-900/60 dark:text-gray-400 select-none">[6]</span>
+      </button>
+      <button type="button" class="mole-hole h-28 text-4xl rounded-2xl border-4 border-amber-800 bg-amber-100 dark:bg-gray-800 hover:bg-amber-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500 flex flex-col items-center justify-center shadow-inner relative card-border" data-index="7" aria-label="หลุมที่ 7">
+        <span class="mole-icon transition-transform duration-150 scale-0 select-none">🐹</span>
+        <span class="absolute bottom-1 right-2 text-xs font-bold text-amber-900/60 dark:text-gray-400 select-none">[7]</span>
+      </button>
+      <button type="button" class="mole-hole h-28 text-4xl rounded-2xl border-4 border-amber-800 bg-amber-100 dark:bg-gray-800 hover:bg-amber-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500 flex flex-col items-center justify-center shadow-inner relative card-border" data-index="8" aria-label="หลุมที่ 8">
+        <span class="mole-icon transition-transform duration-150 scale-0 select-none">🐹</span>
+        <span class="absolute bottom-1 right-2 text-xs font-bold text-amber-900/60 dark:text-gray-400 select-none">[8]</span>
+      </button>
+      <button type="button" class="mole-hole h-28 text-4xl rounded-2xl border-4 border-amber-800 bg-amber-100 dark:bg-gray-800 hover:bg-amber-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500 flex flex-col items-center justify-center shadow-inner relative card-border" data-index="9" aria-label="หลุมที่ 9">
+        <span class="mole-icon transition-transform duration-150 scale-0 select-none">🐹</span>
+        <span class="absolute bottom-1 right-2 text-xs font-bold text-amber-900/60 dark:text-gray-400 select-none">[9]</span>
+      </button>
+    </section>
+
+  </main>
+
+  <footer class="max-w-4xl mx-auto w-full text-center text-xs text-gray-500 dark:text-gray-400 mt-8 py-4 border-t border-gray-200 dark:border-gray-800">
+    เกมเว็บ HTML/Tailwind CSS/JavaScript - รองรับ keyboard, accessibility และทุกอุปกรณ์
+  </footer>
+
+  <script>
+    const LEVEL_CONFIG = {
+      easy: { speed: 1200, targetScore: 8 },
+      medium: { speed: 800, targetScore: 12 },
+      hard: { speed: 500, targetScore: 16 }
+    };
+
+    let score = 0;
+    let timeLeft = 20;
+    let gameTimer = null;
+    let moleTimer = null;
+    let activeHole = null;
+    let isPlaying = false;
+
+    // DOM Elements
+    const holes = document.querySelectorAll('.mole-hole');
+    const scoreEl = document.getElementById('score');
+    const timeLeftEl = document.getElementById('time-left');
+    const statusMessage = document.getElementById('status-message');
+    const startBtn = document.getElementById('start-btn');
+    const difficultySelect = document.getElementById('difficulty-select');
+    const instructionsBtn = document.getElementById('instructions-btn');
+    const instructionsModal = document.getElementById('instructions-modal');
+    const themeToggle = document.getElementById('theme-toggle');
+
+    // สุ่มตำแหน่งหลุม
+    function getRandomHole() {
+      const index = Math.floor(Math.random() * holes.length);
+      const hole = holes[index];
+      if (hole === activeHole) return getRandomHole();
+      return hole;
+    }
+
+    // แสดงตัวตุ่น
+    function popMole() {
+      if (!isPlaying) return;
+
+      // ซ่อนตัวตุ่นตัวเก่า
+      if (activeHole) {
+        const prevMole = activeHole.querySelector('.mole-icon');
+        prevMole.classList.remove('scale-100');
+        prevMole.classList.add('scale-0');
+        activeHole.setAttribute('aria-label', `หลุมที่ ${activeHole.dataset.index} ว่างเปล่า`);
+      }
+
+      // สุ่มเลือกหลุมใหม่
+      const hole = getRandomHole();
+      activeHole = hole;
+      const mole = hole.querySelector('.mole-icon');
+
+      mole.textContent = '🐹';
+      mole.classList.remove('scale-0');
+      mole.classList.add('scale-100');
+      hole.setAttribute('aria-label', `หลุมที่ ${hole.dataset.index} มีตัวตุ่นโผล่ขึ้นมา`);
+
+      const config = LEVEL_CONFIG[difficultySelect.value];
+      moleTimer = setTimeout(popMole, config.speed);
+    }
+
+    // ทุบตัวตุ่น
+    function whack(hole) {
+      if (!isPlaying || hole !== activeHole) return;
+
+      const mole = hole.querySelector('.mole-icon');
+      if (mole.classList.contains('scale-0')) return;
+
+      score++;
+      scoreEl.textContent = score;
+
+      // เอฟเฟกต์โดนทุบ
+      mole.textContent = '💥';
+      setTimeout(() => {
+        mole.classList.remove('scale-100');
+        mole.classList.add('scale-0');
+      }, 150);
+
+      activeHole = null;
+    }
+
+    // เริ่มเกม
+    function startGame() {
+      resetGame();
+      isPlaying = true;
+      startBtn.disabled = true;
+      startBtn.classList.add('opacity-50', 'cursor-not-allowed');
+      difficultySelect.disabled = true;
+
+      hideStatus();
+      popMole();
+
+      // นับถอยหลังเวลา
+      gameTimer = setInterval(() => {
+        timeLeft--;
+        timeLeftEl.textContent = timeLeft;
+
+        if (timeLeft <= 0) {
+          endGame();
+        }
+      }, 1000);
+    }
+
+    // จบเกม
+    function endGame() {
+      isPlaying = false;
+      clearInterval(gameTimer);
+      clearTimeout(moleTimer);
+
+      if (activeHole) {
+        const mole = activeHole.querySelector('.mole-icon');
+        mole.classList.remove('scale-100');
+        mole.classList.add('scale-0');
+      }
+
+      startBtn.disabled = false;
+      startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+      difficultySelect.disabled = false;
+
+      const config = LEVEL_CONFIG[difficultySelect.value];
+      if (score >= config.targetScore) {
+        showStatus(`🎉 ยินดีด้วย! คุณชนะ ทำได้ ${score} คะแนน (เป้าหมาย ${config.targetScore})`, 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-500');
+      } else {
+        showStatus(`💥 หมดเวลา! คุณแพ้ ทำได้ ${score} คะแนน (ต้องการ ${config.targetScore})`, 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border-red-500');
+      }
+    }
+
+    // รีเซ็ตเกม
+    function resetGame() {
+      score = 0;
+      timeLeft = 20;
+      scoreEl.textContent = score;
+      timeLeftEl.textContent = timeLeft;
+      clearInterval(gameTimer);
+      clearTimeout(moleTimer);
+      activeHole = null;
+    }
+
+    function showStatus(text, bgClass) {
+      statusMessage.textContent = text;
+      statusMessage.className = `w-full text-center p-3 mb-4 rounded-lg font-bold text-lg border ${bgClass}`;
+    }
+
+    function hideStatus() {
+      statusMessage.className = 'w-full text-center p-3 mb-4 rounded-lg font-bold text-lg hidden';
+    }
+
+    // Event Listeners (Mouse / Touch)
+    holes.forEach(hole => {
+      hole.addEventListener('click', () => whack(hole));
+    });
+
+    // Event Listeners (Keyboard 1-9)
+    window.addEventListener('keydown', (e) => {
+      const key = e.key;
+      if (key >= '1' && key <= '9') {
+        const index = parseInt(key);
+        const targetHole = Array.from(holes).find(h => h.dataset.index === key);
+        if (targetHole) {
+          targetHole.focus();
+          whack(targetHole);
+        }
+      }
+    });
+
+    startBtn.addEventListener('click', startGame);
+
+    instructionsBtn.addEventListener('click', () => {
+      instructionsModal.showModal();
+    });
+
+    themeToggle.addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+    });
+  </script>
+</body>
+</html>
